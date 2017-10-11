@@ -4,12 +4,23 @@ import csv
 from psychopy import locale_setup, gui, visual, core, data, event, logging, sound, parallel
 import os  # handy system and path functions
 import sys  # to get file system encoding
+import copy
+import collections
 
 def createDiffsList(subjectsRating, semanticSign):
     trialsNumber = 40
     # trialsExample = np.random.random_integers(11, size=(1.,40.))[0]
     amountForEachDiff = {-3: 2, -2: 2, -1: 6, 0: 6, 1: 6, 2: 2, 3: 7, 4: 7, 5: 2}
     possibleIndicesForDiffs = {-3: [], -2: [], -1: [], 0: [], 1: [], 2: [], 3: [], 4: [], 5: []}
+
+    subjectRatingsCorrectedForSign = []
+    index = 0
+    for originalScore in subjectsRating:
+        subjectRatingsCorrectedForSign.insert(index, fitValueToSemanticSign\
+            (11 - abs(originalScore), semanticSign[index]))
+        index += 1
+
+    result = chooseTrialsForNeutral(subjectRatingsCorrectedForSign, amountForEachDiff)
 
     # for each diff - create the list of trials' indices that can have this diff
     indexInTrails = 0
@@ -22,19 +33,7 @@ def createDiffsList(subjectsRating, semanticSign):
         keyTrail = keyTrail + 1
 
     finalIndicesForDiffs = {-3: [], -2: [], -1: [], 0:[], 1: [], 2: [], 3: [], 4: [], 5: []}
-    '''
-    result = findTrialsForPositiveFeedback(possibleIndicesForDiffs, amountForEachDiff, subjectsRating,\
-                 semanticSign,5, finalIndicesForDiffs, False)
-    amountLeft = result['amountLeft']
-    amountForEachDiff[2] -= amountLeft
-    amountForEachDiff[3] += amountLeft
-    amountForEachDiff[4] += amountLeft
 
-    result = findTrialsForPositiveFeedback(possibleIndicesForDiffs, amountForEachDiff, subjectsRating,\
-                                               semanticSign, 4, finalIndicesForDiffs, result['extremeReached'])
-    if result['amountLeft'] > 0:
-        raise Exception('Too extreme subject!')
-    '''
     diffsOrderToFindTrials = [5, 4, 3, 2, -3, -2, 1, -1, 0]
 
     isHighestReached = False
@@ -56,6 +55,128 @@ def createDiffsList(subjectsRating, semanticSign):
 
     return getFinalIndicesList(orderedDiffs, diffPositiveIndices, diffNegativeIndices, diffNutralIndices,\
                                finalIndicesForDiffs, subjectsRating, semanticSign)
+
+
+def chooseTrialsForNeutral(subjectRatingsCorrectedForSign, amountForEachDiff):
+    missingTrials = 0
+    possibleIndicesForEachDiff = {}
+    finalIndicesForNeutralDiffs = {}
+    amountToreach = 0
+    amountToreach = amountForEachDiff[1]
+    subjectRatingsWithIndices = createListOfTuplesWithIndex(subjectRatingsCorrectedForSign)
+    subjectRatingsShuffled = copy.deepcopy(subjectRatingsWithIndices)
+
+    random.shuffle(subjectRatingsShuffled)
+
+    possibleIndicesForEachDiff[1] = []
+    finalIndicesForNeutralDiffs[1] = []
+
+    possibleIndicesForEachDiff[0] = []
+    finalIndicesForNeutralDiffs[0] = []
+
+    possibleIndicesForEachDiff[-1] = []
+    finalIndicesForNeutralDiffs[-1] = []
+    # plus 1
+
+    for subjectRatingTuple in subjectRatingsShuffled:
+        subjectRating = subjectRatingTuple['element']
+        if subjectRating >= 3 and subjectRating <= 6:
+            possibleIndicesForEachDiff[1].insert(0, {'index': subjectRatingTuple['index'], 'isUsed': False})
+
+        if subjectRating >= 5 and subjectRating <= 7:
+            possibleIndicesForEachDiff[0].insert(0, {'index': subjectRatingTuple['index'], 'isUsed': False})
+
+        if subjectRating >= 5 and subjectRating <= 9:
+            possibleIndicesForEachDiff[-1].insert(0, {'index': subjectRatingTuple['index'], 'isUsed': False})
+
+    for diff, optionsForDiff in possibleIndicesForEachDiff.items():
+        if len(finalIndicesForNeutralDiffs[0]) == amountForEachDiff[0] and \
+                        len(finalIndicesForNeutralDiffs[1]) == amountForEachDiff[1] and \
+                        len(finalIndicesForNeutralDiffs[-1]) == amountForEachDiff[-1]:
+            break
+
+        for options in optionsForDiff:
+            foundFree = False
+            if options['isUsed'] == False:
+                foundFree = True
+                finalIndicesForNeutralDiffs[diff].insert(0, options['index'])
+                markIndexStatus(possibleIndicesForEachDiff, options['index'])
+                break
+        if foundFree == False:
+            if False == tryToReleaseIndex(possibleIndicesForEachDiff, diff, finalIndicesForNeutralDiffs):
+                missingTrials += amountForEachDiff[diff] - len(finalIndicesForNeutralDiffs[diff])
+                amountForEachDiff[diff] = len(finalIndicesForNeutralDiffs[diff])
+
+    if missingTrials > 0:
+        for diff, optionsForDiff in possibleIndicesForEachDiff.items():
+            for options in optionsForDiff:
+                if options['isUsed'] == False:
+                    finalIndicesForNeutralDiffs[diff].insert(0, options['index'])
+                    markIndexStatus(possibleIndicesForEachDiff, options['index'])
+                    amountForEachDiff[diff] += 1
+                    missingTrials -= 1
+
+    print ("missing trials for neutral" + str(missingTrials))
+
+        # at the end, I should loook at the missing trial and see if any of the diffs for neutrsl
+        # has free trials left, and there sre - should add them to the final trials even
+        # if the prefereed split of amount for each diff within the neutral condition is not the best
+
+def createListOfTuplesWithIndex(originalList):
+    tuplesList = []
+    index = 0
+    for element in originalList:
+        tuplesList.insert(0, {'index': index, 'element': element})
+        index += 1
+    return tuplesList
+
+def tryToReleaseIndex(possibleIndicesForEachDiff, problematicDiff, finalIndicesForNeutralDiffs):
+    usedIndices = []
+    for diff, possibleIndices in possibleIndicesForEachDiff.items():
+        if diff == problematicDiff:
+            continue
+
+        freeIndex = isFreeIndexExist(possibleIndices)
+        if freeIndex == None:
+            continue
+
+        problematicList = fromDictListToIndexList(possibleIndicesForEachDiff[problematicDiff])
+        optionalList = fromDictListToIndexList(possibleIndicesForEachDiff[diff])
+
+        a_multiset = collections.Counter(problematicList)
+        b_multiset = collections.Counter(optionalList)
+
+        overlap = list((a_multiset & b_multiset).elements())
+        if len(overlap) == 0:
+            continue
+
+        indexToUse = overlap[0]
+        finalIndicesForNeutralDiffs[diff].insert(0, freeIndex)
+        finalIndicesForNeutralDiffs[diff].remove(indexToUse)
+        finalIndicesForNeutralDiffs[problematicDiff].insert(0, indexToUse)
+
+        return True
+
+    return False
+
+
+def isFreeIndexExist(possibleIndices):
+    for option in possibleIndices:
+        if option['isUsed'] == False:
+            return option['index']
+    return None
+
+
+def fromDictListToIndexList(dictList):
+    return [option['index'] for option in dictList]
+
+
+def markIndexStatus(possibleIndicesForEachDiff, usedIndex, isUsed=True):
+    for key, possibleIndices in possibleIndicesForEachDiff.items():
+        for possibleIndexForSpecificDiff in possibleIndices:
+            if possibleIndexForSpecificDiff['index'] == usedIndex:
+                possibleIndexForSpecificDiff['isUsed'] = isUsed
+                break
 
 def getFinalIndicesList(orderedDiffs, diffPositiveIndices, diffNegativeIndices, diffNutralIndices, finalIndicesForDiffs,\
                         subjectsRating, semanticSign):
