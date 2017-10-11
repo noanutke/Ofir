@@ -7,6 +7,23 @@ import sys  # to get file system encoding
 import copy
 import collections
 
+def tryToFreeIndicesFromOtherConditions(problmaticDiff, numberMissingForCondition, \
+                                        possibleIndicesForAllConditions, finalIndicesForAllConditions):
+    while numberMissingForCondition > 0:
+        if False == tryToReleaseIndex(possibleIndicesForAllConditions, problmaticDiff, finalIndicesForAllConditions):
+            return numberMissingForCondition
+        else:
+            numberMissingForCondition -= 1
+    return numberMissingForCondition
+
+def tryFreeIndicesForCondition(conditionDiffs, numberMissingForCondition, \
+                                        possibleIndicesForAllConditions, finalIndicesForAllConditions):
+    for diff in conditionDiffs:
+        numberMissingForCondition = tryToFreeIndicesFromOtherConditions(diff, numberMissingForCondition,\
+                                                                        possibleIndicesForAllConditions,\
+                                                                        finalIndicesForAllConditions)
+    return numberMissingForCondition
+
 def createDiffsList(subjectsRating, semanticSign):
     trialsNumber = 40
     # trialsExample = np.random.random_integers(11, size=(1.,40.))[0]
@@ -25,15 +42,35 @@ def createDiffsList(subjectsRating, semanticSign):
     possibleIndicesForNegative = getPossibleIndicesForNegative(subjectRatingsCorrectedForSign)
 
 
-    finalIndicesFotNeutral = chooseTrialsForCondition(amountForEachDiff, possibleIndicesForNeutral, "neutral", \
+    resultsForNeutral = chooseTrialsForCondition(amountForEachDiff, possibleIndicesForNeutral, "neutral", \
                                                       possibleIndicesForPositive, \
                                                       possibleIndicesForNegative)
-    finalIndicesFotPositive = chooseTrialsForCondition(amountForEachDiff, possibleIndicesForPositive, "Positive", \
+    resultsForPositive = chooseTrialsForCondition(amountForEachDiff, possibleIndicesForPositive, "Positive", \
                                                        possibleIndicesForNegative, \
                                                        possibleIndicesForNeutral)
-    finalIndicesFotNegative = chooseTrialsForCondition(amountForEachDiff, possibleIndicesForNegative, "Negative", \
+    resultsForNegative = chooseTrialsForCondition(amountForEachDiff, possibleIndicesForNegative, "Negative", \
                                                        possibleIndicesForNeutral, \
                                                        possibleIndicesForPositive)
+    possibleIndicesForAllConditions = dict(possibleIndicesForNeutral)
+    possibleIndicesForAllConditions.update(possibleIndicesForNegative)
+    possibleIndicesForAllConditions.update(possibleIndicesForPositive)
+
+    finalIndicesForAllConditions = dict(resultsForNegative["finalIndices"])
+    finalIndicesForAllConditions.update(resultsForNeutral["finalIndices"])
+    finalIndicesForAllConditions.update(resultsForPositive["finalIndices"])
+
+    missingIndicesForNeutral = tryFreeIndicesForCondition([-1,0,1], resultsForNeutral["missingTrials"], \
+                                                          possibleIndicesForAllConditions,\
+                                                          finalIndicesForAllConditions)
+
+    missingIndicesForPositive = tryFreeIndicesForCondition([2,3,4,5], resultsForPositive["missingTrials"], \
+                                                          possibleIndicesForAllConditions, \
+                                                          finalIndicesForAllConditions)
+
+    missingIndicesForNegative = tryFreeIndicesForCondition([-2,-3], resultsForNegative["missingTrials"], \
+                                                          possibleIndicesForAllConditions, \
+                                                          finalIndicesForAllConditions)
+
 
     # for each diff - create the list of trials' indices that can have this diff
     indexInTrails = 0
@@ -180,9 +217,9 @@ def chooseTrialsForCondition(amountForEachDiff, possibleIndicesForEachDiff, cond
 
     if missingTrials > 0:
         for diff, optionsForDiff in possibleIndicesForEachDiff.iteritems():
-            if missingTrials == 0:
-                break
             for options in optionsForDiff:
+                if missingTrials == 0:
+                    break
                 if options['isUsed'] == False:
                     finalIndicesForCondition[diff].insert(0, options['index'])
                     markIndexStatusInThreeConditions(possibleIndicesForEachDiff,\
@@ -192,7 +229,7 @@ def chooseTrialsForCondition(amountForEachDiff, possibleIndicesForEachDiff, cond
                     missingTrials -= 1
 
     print ("missing trials for " + condition + str(missingTrials))
-    return finalIndicesForCondition
+    return {"missingTrials": missingTrials, "finalIndices": finalIndicesForCondition}
 
         # at the end, I should loook at the missing trial and see if any of the diffs for neutrsl
         # has free trials left, and there sre - should add them to the final trials even
