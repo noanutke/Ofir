@@ -487,6 +487,7 @@ def tryToReleaseIndexForDiff(possibleIndicesForEachDiff, problematicDiff, finalI
         finalIndicesForCurrentDiff = removeElementFromFinalIndicesList(finalIndicesForCurrentDiff,\
                                                                              indexToUse)
         finalIndicesForCurrentDiff[problematicDiff].insert(0, {'index': indexToUse, 'condition': problenaticCondition})
+        markIndexStatusInThreeConditions(possibleIndicesForEachDiff, [], [], freeIndex)
 
         return indexToUse
 
@@ -520,7 +521,6 @@ def markIndexStatus(possibleIndicesForEachDiff, usedIndex, isUsed=True):
         for possibleIndexForSpecificDiff in possibleIndices:
             if possibleIndexForSpecificDiff['index'] == usedIndex:
                 possibleIndexForSpecificDiff['isUsed'] = isUsed
-                break
 
 def getFinalIndicesList(orderedDiffs, diffPositiveIndices, diffNegativeIndices, diffNutralIndices, finalIndicesForDiffs,\
                         subjectsRating, semanticSign):
@@ -528,33 +528,48 @@ def getFinalIndicesList(orderedDiffs, diffPositiveIndices, diffNegativeIndices, 
     for diff in orderedDiffs:
         if diff == 'positive':
             index = diffPositiveIndices[0]
+            finalScore = findJudgeFinalScoreForIndex \
+                (finalIndicesForDiffs, index, subjectsRating, semanticSign)
             diffPositiveIndices.remove(index)
 
             finalIndicesList.insert(len(finalIndicesList),\
                                     {'index': index, 'judgeDiff': findJudgeDiffForIndex(finalIndicesForDiffs, index), \
-                                     'judgeFinalScore': findJudgeFinalScoreForIndex\
-                                         (finalIndicesForDiffs, index, subjectsRating, semanticSign),\
+                                     'judgeFinalScore': finalScore,\
                                      'subjectScore': subjectsRating[index],\
-                                     'semanticValue': semanticSign[index]})
+                                     'semanticValue': semanticSign[index], \
+                                     'condition': findConditionForIndex(finalIndicesForDiffs, index),\
+                                     'finalScoreCorrected': findFinalScoreForIndex(index, finalScore, semanticSign)})
         elif diff == 'negative':
             index = diffNegativeIndices[0]
+            finalScore = findJudgeFinalScoreForIndex \
+                (finalIndicesForDiffs, index, subjectsRating, semanticSign)
             diffNegativeIndices.remove(index)
             finalIndicesList.insert(len(finalIndicesList),\
                                     {'index': index, 'judgeDiff': findJudgeDiffForIndex(finalIndicesForDiffs, index), \
-                                     'judgeFinalScore': findJudgeFinalScoreForIndex\
-                                         (finalIndicesForDiffs, index, subjectsRating, semanticSign),\
+                                     'judgeFinalScore': finalScore,\
                                      'subjectScore': subjectsRating[index],\
-                                     'semanticValue': semanticSign[index]})
+                                     'semanticValue': semanticSign[index], \
+                                     'condition': findConditionForIndex(finalIndicesForDiffs, index),\
+                                     'finalScoreCorrected': findFinalScoreForIndex(index, finalScore, semanticSign)})
         elif diff == 'neutral':
             index = diffNutralIndices[0]
+            finalScore = findJudgeFinalScoreForIndex \
+                (finalIndicesForDiffs, index, subjectsRating, semanticSign)
             diffNutralIndices.remove(index)
             finalIndicesList.insert(len(finalIndicesList),\
                                     {'index': index, 'judgeDiff': findJudgeDiffForIndex(finalIndicesForDiffs, index), \
-                                     'judgeFinalScore': findJudgeFinalScoreForIndex\
-                                         (finalIndicesForDiffs, index, subjectsRating, semanticSign),\
+                                     'judgeFinalScore': finalScore,\
                                      'subjectScore': subjectsRating[index],\
-                                     'semanticValue': semanticSign[index]})
+                                     'semanticValue': semanticSign[index], \
+                                     'condition': findConditionForIndex(finalIndicesForDiffs, index),\
+                                     'finalScoreCorrected': findFinalScoreForIndex(index, finalScore, semanticSign)})
     return finalIndicesList
+
+def findConditionForIndex(finalIndicesForDiffs, index):
+    for diff, options in finalIndicesForDiffs.iteritems():
+        for option in options:
+            if option['index'] == index:
+                return option['condition']
 
 def findJudgeDiffForIndex(finalIndicesForDiffs, index):
     for diff, options in finalIndicesForDiffs.iteritems():
@@ -567,6 +582,13 @@ def findJudgeFinalScoreForIndex(finalIndicesForDiffs, index, subjectsRating, sem
         for option in options:
             if option['index'] == index:
                 return diff*semanticSign[index]+subjectsRating[index]
+
+def findFinalScoreForIndex(index,score,semanticSign):
+    diffFromEdge = 11 - score
+    if semanticSign[index] == -1:
+        return 1+ diffFromEdge
+    else:
+        return score
 
 def createRandomizeIndicesForCondition(indicesForDiffs, diffsInCondition):
     indicesToReturn = []
@@ -709,9 +731,9 @@ def orderDiffs(positiveDiffAmount, negativeDiffAmount, zeroDiffAmount):
                 diffToLocalize = negative if randomDiffResult == -1 else neutralDiff
 
             if canAddDiffInLocation(orderedDiffs, randomLocationResult, diffToLocalize):
-                orderedDiffs.insert(randomResult, positive)
+                orderedDiffs.insert(randomResult, diffToLocalize)
                 negativeAndZeroDiffAmount -= 1
-                if diffToLocalize == -1:
+                if diffToLocalize == "negative":
                     negativeDiffAmount -= 1
                 else:
                     zeroDiffAmount -= 1
@@ -773,8 +795,9 @@ for trial in trials.trialList:
 diffsList = createDiffsList(subjectsRating, semanticSign)
 fl = open(filename + '_judgesScores.csv', 'w')
 writer = csv.writer(fl)
-writer.writerow(['judgeDiff', 'TrialOriginalIndex', 'subjectScore', 'judgeFinalScore', 'semanticValue'])
+writer.writerow(['judgeDiff', 'TrialOriginalIndex', 'subjectScore', 'judgeFinalScore', 'semanticValue', 'condition',\
+                 'finalScoreCorrected'])
 for values in diffsList:
     writer.writerow([values['judgeDiff'], values['index'], values['subjectScore'], values['judgeFinalScore'],\
-                     values['semanticValue']])
+                     values['semanticValue'], values['condition'], values['finalScoreCorrected']])
 fl.close()
