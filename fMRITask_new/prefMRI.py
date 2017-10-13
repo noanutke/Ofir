@@ -7,19 +7,23 @@ import sys  # to get file system encoding
 import copy
 import collections
 
-def tryToFreeIndicesFromOtherConditions(problmaticDiff, numberMissingForCondition, \
+def tryToFreeIndicesFromOtherConditions(problmaticDiff, problematicCondition, numberMissingForCondition, \
                                         possibleIndicesForAllConditions, finalIndicesForAllConditions):
     while numberMissingForCondition > 0:
-        if False == tryToReleaseIndex(possibleIndicesForAllConditions, problmaticDiff, finalIndicesForAllConditions):
+        indexToUse = tryToReleaseIndexForDiff(
+            possibleIndicesForAllConditions, problmaticDiff, finalIndicesForAllConditions, \
+                                       problematicCondition)
+        if None == indexToUse:
             return numberMissingForCondition
         else:
+            markIndexStatus(possibleIndicesForAllConditions, indexToUse)
             numberMissingForCondition -= 1
     return numberMissingForCondition
 
 def tryFreeIndicesForCondition(conditionDiffs, numberMissingForCondition, \
-                                        possibleIndicesForAllConditions, finalIndicesForAllConditions):
+                                        possibleIndicesForAllConditions, finalIndicesForAllConditions, problematicCondition):
     for diff in conditionDiffs:
-        numberMissingForCondition = tryToFreeIndicesFromOtherConditions(diff, numberMissingForCondition,\
+        numberMissingForCondition = tryToFreeIndicesFromOtherConditions(diff, problematicCondition, numberMissingForCondition,\
                                                                         possibleIndicesForAllConditions,\
                                                                         finalIndicesForAllConditions)
     return numberMissingForCondition
@@ -42,13 +46,13 @@ def createDiffsList(subjectsRating, semanticSign):
     possibleIndicesForNegative = getPossibleIndicesForNegative(subjectRatingsCorrectedForSign)
 
 
-    resultsForNeutral = chooseTrialsForCondition(amountForEachDiff, possibleIndicesForNeutral, "neutral", \
+    resultsForNeutral = chooseTrialsForCondition({}, amountForEachDiff, possibleIndicesForNeutral, "neutral", \
                                                       possibleIndicesForPositive, \
                                                       possibleIndicesForNegative)
-    resultsForPositive = chooseTrialsForCondition(amountForEachDiff, possibleIndicesForPositive, "Positive", \
+    resultsForPositive = chooseTrialsForCondition({}, amountForEachDiff, possibleIndicesForPositive, "positive", \
                                                        possibleIndicesForNegative, \
                                                        possibleIndicesForNeutral)
-    resultsForNegative = chooseTrialsForCondition(amountForEachDiff, possibleIndicesForNegative, "Negative", \
+    resultsForNegative = chooseTrialsForCondition({}, amountForEachDiff, possibleIndicesForNegative, "negative", \
                                                        possibleIndicesForNeutral, \
                                                        possibleIndicesForPositive)
     possibleIndicesForAllConditions = dict(possibleIndicesForNeutral)
@@ -61,50 +65,46 @@ def createDiffsList(subjectsRating, semanticSign):
 
     missingIndicesForNeutral = tryFreeIndicesForCondition([-1,0,1], resultsForNeutral["missingTrials"], \
                                                           possibleIndicesForAllConditions,\
-                                                          finalIndicesForAllConditions)
-
+                                                          finalIndicesForAllConditions, 'neutral')
     missingIndicesForPositive = tryFreeIndicesForCondition([2,3,4,5], resultsForPositive["missingTrials"], \
                                                           possibleIndicesForAllConditions, \
-                                                          finalIndicesForAllConditions)
-
+                                                          finalIndicesForAllConditions, 'positive')
     missingIndicesForNegative = tryFreeIndicesForCondition([-2,-3], resultsForNegative["missingTrials"], \
                                                           possibleIndicesForAllConditions, \
-                                                          finalIndicesForAllConditions)
+                                                          finalIndicesForAllConditions, 'negative')
+    if missingIndicesForNeutral > 0 or missingIndicesForPositive > 0 or missingIndicesForNegative > 0:
+        usedIndices = getListOfPossibleIndicesForCondition(possibleIndicesForAllConditions, None, True)
+        getPossibleIndicesForNeutralNotIdeal(subjectRatingsCorrectedForSign, possibleIndicesForAllConditions, \
+                                             usedIndices)
+        getPossibleIndicesForNegativeNotIdeal(subjectRatingsCorrectedForSign, possibleIndicesForAllConditions, \
+                                              usedIndices)
+        getPossibleIndicesForPositiveNotIdeal(subjectRatingsCorrectedForSign, possibleIndicesForAllConditions, \
+                                              usedIndices)
+        chooseTrialsForConditionNotIdeal(finalIndicesForAllConditions, possibleIndicesForAllConditions, 'neutral',\
+                                         missingIndicesForNeutral)
+        chooseTrialsForConditionNotIdeal(finalIndicesForAllConditions, possibleIndicesForAllConditions, 'positive', \
+                                         missingIndicesForPositive)
+        chooseTrialsForConditionNotIdeal(finalIndicesForAllConditions, possibleIndicesForAllConditions, 'negative', \
+                                         missingIndicesForNegative)
 
+    positiveDiffAmount = len(finalIndicesForAllConditions[5]) + len(finalIndicesForAllConditions[4])\
+                         + len(finalIndicesForAllConditions[3]) +\
+        len(finalIndicesForAllConditions[2]) + len(finalIndicesForAllConditions[1])
 
-    # for each diff - create the list of trials' indices that can have this diff
-    indexInTrails = 0
-    keyTrail = 0
-    for trial in subjectsRating:
-        for key, value in possibleIndicesForDiffs.iteritems():
-            if trial+key*semanticSign[keyTrail] < 12 and trial+key*semanticSign[keyTrail] > 0:
-                value.extend([indexInTrails])
-        indexInTrails = indexInTrails + 1
-        keyTrail = keyTrail + 1
+    negativeDiffAmount = len(finalIndicesForAllConditions[-3])\
+                         + len(finalIndicesForAllConditions[-2]) + len(finalIndicesForAllConditions[-1])
 
-    finalIndicesForDiffs = {-3: [], -2: [], -1: [], 0:[], 1: [], 2: [], 3: [], 4: [], 5: []}
-
-    diffsOrderToFindTrials = [5, 4, 3, 2, -3, -2, 1, -1, 0]
-
-    isHighestReached = False
-    for diff in diffsOrderToFindTrials:
-        isHighestReached = findTrialsForDiff(diff, possibleIndicesForDiffs, amountForEachDiff, finalIndicesForDiffs, \
-                          semanticSign, subjectsRating, isHighestReached)
-
-    positiveDiffAmount = len(finalIndicesForDiffs[5]) + len(finalIndicesForDiffs[4]) + len(finalIndicesForDiffs[3]) +\
-        len(finalIndicesForDiffs[2]) + len(finalIndicesForDiffs[1])
-
-    negativeDiffAmount = len(finalIndicesForDiffs[-3]) + len(finalIndicesForDiffs[-2]) + len(finalIndicesForDiffs[-1])
-
-    diffZeroAmount = len(finalIndicesForDiffs[0])
+    diffZeroAmount = len(finalIndicesForAllConditions[0])
 
     orderedDiffs = orderDiffs(positiveDiffAmount, negativeDiffAmount, diffZeroAmount)
-    diffPositiveIndices = createRandomizeIndicesForCondition(finalIndicesForDiffs, [1,2,3,4,5])
-    diffNegativeIndices = createRandomizeIndicesForCondition(finalIndicesForDiffs, [-3, -2, -1])
-    diffNutralIndices = createRandomizeIndicesForCondition(finalIndicesForDiffs, [0])
+    diffPositiveIndices = createRandomizeIndicesForCondition(finalIndicesForAllConditions, [1,2,3,4,5])
+    diffNegativeIndices = createRandomizeIndicesForCondition(finalIndicesForAllConditions, [-3, -2, -1])
+    diffNutralIndices = createRandomizeIndicesForCondition(finalIndicesForAllConditions, [0])
 
     return getFinalIndicesList(orderedDiffs, diffPositiveIndices, diffNegativeIndices, diffNutralIndices,\
-                               finalIndicesForDiffs, subjectsRating, semanticSign)
+                               finalIndicesForAllConditions, subjectsRating, semanticSign)
+
+
 
 def getPossibleIndicesForNeutral(subjectRatingsCorrectedForSign):
     possibleIndicesForEachDiff = {}
@@ -120,13 +120,41 @@ def getPossibleIndicesForNeutral(subjectRatingsCorrectedForSign):
     for subjectRatingTuple in subjectRatingsShuffled:
         subjectRating = subjectRatingTuple['element']
         if subjectRating >= 3 and subjectRating <= 6:
-            possibleIndicesForEachDiff[1].insert(0, {'index': subjectRatingTuple['index'], 'isUsed': False})
+            possibleIndicesForEachDiff[1].insert(0, {'index': subjectRatingTuple['index'], 'isUsed': False, \
+                                                      'condition': 'neutral'})
 
         if subjectRating >= 5 and subjectRating <= 7:
-            possibleIndicesForEachDiff[0].insert(0, {'index': subjectRatingTuple['index'], 'isUsed': False})
+            possibleIndicesForEachDiff[0].insert(0, {'index': subjectRatingTuple['index'], 'isUsed': False, \
+                                                      'condition': 'neutral'})
 
         if subjectRating >= 5 and subjectRating <= 9:
-            possibleIndicesForEachDiff[-1].insert(0, {'index': subjectRatingTuple['index'], 'isUsed': False})
+            possibleIndicesForEachDiff[-1].insert(0, {'index': subjectRatingTuple['index'], 'isUsed': False, \
+                                                      'condition': 'neutral'})
+
+    return possibleIndicesForEachDiff
+
+def getPossibleIndicesForNeutralNotIdeal(subjectRatingsCorrectedForSign, possibleIndicesForEachDiff, usedIndices):
+    subjectRatingsWithIndices = createListOfTuplesWithIndex(subjectRatingsCorrectedForSign)
+    subjectRatingsShuffled = copy.deepcopy(subjectRatingsWithIndices)
+
+    random.shuffle(subjectRatingsShuffled)
+
+    for subjectRatingTuple in subjectRatingsShuffled:
+        subjectRating = subjectRatingTuple['element']
+        index = subjectRatingTuple['index']
+        isUsed = index in usedIndices
+        if subjectRating >= 2 and subjectRating <= 4:
+
+            possibleIndicesForEachDiff[2].insert(0, {'index': index, 'isUsed': isUsed, \
+                                                      'condition': 'neutral'})
+
+        if subjectRating == 4 or subjectRating == 8:
+            possibleIndicesForEachDiff[0].insert(0, {'index': index, 'isUsed': isUsed, \
+                                                      'condition': 'neutral'})
+
+        if subjectRating >= 8 and subjectRating <= 10:
+            possibleIndicesForEachDiff[-2].insert(0, {'index': index, 'isUsed': isUsed, \
+                                                      'condition': 'neutral'})
 
     return possibleIndicesForEachDiff
 
@@ -146,16 +174,56 @@ def getPossibleIndicesForPositive(subjectRatingsCorrectedForSign):
     for subjectRatingTuple in subjectRatingsShuffled:
         subjectRating = subjectRatingTuple['element']
         if subjectRating >= 5 and subjectRating <= 8:
-            possibleIndicesForEachDiff[2].insert(0, {'index': subjectRatingTuple['index'], 'isUsed': False})
+            possibleIndicesForEachDiff[2].insert(0, {'index': subjectRatingTuple['index'], 'isUsed': False, \
+                                                      'condition': 'positive'})
 
         if subjectRating >= 4 and subjectRating <= 7:
-            possibleIndicesForEachDiff[3].insert(0, {'index': subjectRatingTuple['index'], 'isUsed': False})
+            possibleIndicesForEachDiff[3].insert(0, {'index': subjectRatingTuple['index'], 'isUsed': False, \
+                                                      'condition': 'positive'})
 
         if subjectRating >= 3 and subjectRating <= 6:
-            possibleIndicesForEachDiff[4].insert(0, {'index': subjectRatingTuple['index'], 'isUsed': False})
+            possibleIndicesForEachDiff[4].insert(0, {'index': subjectRatingTuple['index'], 'isUsed': False, \
+                                                      'condition': 'positive'})
 
         if subjectRating >= 2 and subjectRating <= 5:
-            possibleIndicesForEachDiff[5].insert(0, {'index': subjectRatingTuple['index'], 'isUsed': False})
+            possibleIndicesForEachDiff[5].insert(0, {'index': subjectRatingTuple['index'], 'isUsed': False, \
+                                                      'condition': 'positive'})
+
+    return possibleIndicesForEachDiff
+
+def getPossibleIndicesForPositiveNotIdeal(subjectRatingsCorrectedForSign, possibleIndicesForEachDiff, usedIndices):
+    subjectRatingsWithIndices = createListOfTuplesWithIndex(subjectRatingsCorrectedForSign)
+    subjectRatingsShuffled = copy.deepcopy(subjectRatingsWithIndices)
+
+    random.shuffle(subjectRatingsShuffled)
+
+    for subjectRatingTuple in subjectRatingsShuffled:
+        subjectRating = subjectRatingTuple['element']
+        index = subjectRatingTuple['index']
+        isUsed = index in usedIndices
+        if subjectRating == 9:
+            possibleIndicesForEachDiff[2].insert(0, {'index': index, 'isUsed': isUsed, \
+                                                      'condition': 'positive'})
+
+        if subjectRating == 8 or  subjectRating == 3:
+            possibleIndicesForEachDiff[3].insert(0, {'index': index, 'isUsed': isUsed, \
+                                                      'condition': 'positive'})
+
+        if subjectRating == 7 or subjectRating == 2:
+            possibleIndicesForEachDiff[4].insert(0, {'index': index, 'isUsed': isUsed, \
+                                                      'condition': 'positive'})
+
+        if subjectRating == 1 or subjectRating == 6:
+            possibleIndicesForEachDiff[5].insert(0, {'index': index, 'isUsed': isUsed,\
+                                                      'condition': 'positive'})
+
+        if subjectRating >= 7 and subjectRating <= 10:
+            possibleIndicesForEachDiff[1].insert(0, {'index': index, 'isUsed': isUsed, \
+                                                      'condition': 'positive'})
+
+        if subjectRating >= 9 and subjectRating <= 11:
+            possibleIndicesForEachDiff[0].insert(0, {'index': index, 'isUsed': isUsed, \
+                                                      'condition': 'positive'})
 
     return possibleIndicesForEachDiff
 
@@ -173,10 +241,32 @@ def getPossibleIndicesForNegative(subjectRatingsCorrectedForSign):
     for subjectRatingTuple in subjectRatingsShuffled:
         subjectRating = subjectRatingTuple['element']
         if subjectRating >= 4 and subjectRating <= 6:
-            possibleIndicesForEachDiff[-2].insert(0, {'index': subjectRatingTuple['index'], 'isUsed': False})
+            possibleIndicesForEachDiff[-2].insert(0, {'index': subjectRatingTuple['index'], 'isUsed': False, \
+                                                      'condition': 'negative'})
 
         if subjectRating >= 5 and subjectRating <= 7:
-            possibleIndicesForEachDiff[-3].insert(0, {'index': subjectRatingTuple['index'], 'isUsed': False})
+            possibleIndicesForEachDiff[-3].insert(0, {'index': subjectRatingTuple['index'], 'isUsed': False, \
+                                                      'condition': 'negative'})
+
+    return possibleIndicesForEachDiff
+
+def getPossibleIndicesForNegativeNotIdeal(subjectRatingsCorrectedForSign, possibleIndicesForEachDiff, usedIndices):
+    subjectRatingsWithIndices = createListOfTuplesWithIndex(subjectRatingsCorrectedForSign)
+    subjectRatingsShuffled = copy.deepcopy(subjectRatingsWithIndices)
+
+    random.shuffle(subjectRatingsShuffled)
+
+    for subjectRatingTuple in subjectRatingsShuffled:
+        subjectRating = subjectRatingTuple['element']
+        index = subjectRatingTuple['index']
+        isUsed = index in usedIndices
+        if subjectRating == 3:
+            possibleIndicesForEachDiff[-2].insert(0, {'index': index, 'isUsed': isUsed, \
+                                                      'condition': 'negative'})
+
+        if subjectRating == 4:
+            possibleIndicesForEachDiff[-3].insert(0, {'index': index, 'isUsed': isUsed,\
+                                                      'condition': 'negative'})
 
     return possibleIndicesForEachDiff
 
@@ -187,14 +277,35 @@ def markIndexStatusInThreeConditions(possibleInficesForOtherCondition1, possible
     markIndexStatus(possibleInficesForOtherCondition2, index)
     markIndexStatus(possibleInficesForOtherCondition3, index)
 
+def chooseTrialsForConditionNotIdeal(finalIndicesForAllConditions, possibleIndicesForAllDiffs, condition, missingTrials):
 
-def chooseTrialsForCondition(amountForEachDiff, possibleIndicesForEachDiff, condition,\
-                             possibleInficesForOtherCondition1, possibleInficesForOtherCondition2):
+    for diff, optionsForDiff in possibleIndicesForAllDiffs.iteritems():
+        for options in optionsForDiff:
+            if missingTrials == 0:
+                break
+            if options['isUsed'] == False and options['condition'] == condition:
+                finalIndicesForAllConditions[diff].insert(0, {'index': options['index'], 'condition': condition})
+                markIndexStatusInThreeConditions(possibleIndicesForAllDiffs, [], [], options['index'])
+                missingTrials -= 1
+
+    while missingTrials > 0:
+        indexToUse = tryToReleaseIndexForCondition(possibleIndicesForAllDiffs, condition, finalIndicesForAllConditions)
+        if None != indexToUse:
+            missingTrials -= 1
+        else:
+            raise Exception('Too extreme subject for condition ' + condition + ". Missing trials: " + str(missingTrials))
+
+    print ("missing trials for " + condition + str(missingTrials))
+    return finalIndicesForAllConditions
+
+
+def chooseTrialsForCondition(finalIndicesForCondition, amountForEachDiff, possibleIndicesForEachDiff, condition,\
+                             possibleInficesForOtherCondition1, possibleInficesForOtherCondition2, shouldInitialize = True):
     missingTrials = 0
-    finalIndicesForCondition = {}
 
     for diff, optionsForDiff in possibleIndicesForEachDiff.iteritems():
-        finalIndicesForCondition[diff] = list([])
+        if shouldInitialize == True:
+            finalIndicesForCondition[diff] = list([])
 
     while checkIfFinishedAllocatingIndices(finalIndicesForCondition, amountForEachDiff) != True:
         for diff, optionsForDiff in possibleIndicesForEachDiff.iteritems():
@@ -203,25 +314,30 @@ def chooseTrialsForCondition(amountForEachDiff, possibleIndicesForEachDiff, cond
 
             for options in optionsForDiff:
                 freeNotFound = True
-                if options['isUsed'] == False:
-                    finalIndicesForCondition[diff].insert(0, options['index'])
+                if options['isUsed'] == False and options['condition'] == condition:
+                    finalIndicesForCondition[diff].insert(0, {'index': options['index'], 'condition': condition})
                     markIndexStatusInThreeConditions(possibleIndicesForEachDiff,\
                                                      possibleInficesForOtherCondition1,\
                                                      possibleInficesForOtherCondition2, options['index'])
                     freeNotFound = False
                     break
             if freeNotFound == True:
-                if False == tryToReleaseIndex(possibleIndicesForEachDiff, diff, finalIndicesForCondition):
+                indexToUse = tryToReleaseIndexForDiff(possibleIndicesForEachDiff, diff, finalIndicesForCondition, condition)
+                if None == indexToUse:
                     missingTrials += amountForEachDiff[diff] - len(finalIndicesForCondition[diff])
                     amountForEachDiff[diff] = len(finalIndicesForCondition[diff])
+                else:
+                    markIndexStatusInThreeConditions(possibleIndicesForEachDiff,\
+                                                     possibleInficesForOtherCondition1,\
+                                                     possibleInficesForOtherCondition2, indexToUse)
 
     if missingTrials > 0:
         for diff, optionsForDiff in possibleIndicesForEachDiff.iteritems():
             for options in optionsForDiff:
                 if missingTrials == 0:
                     break
-                if options['isUsed'] == False:
-                    finalIndicesForCondition[diff].insert(0, options['index'])
+                if options['isUsed'] == False and options['condition'] == condition:
+                    finalIndicesForCondition[diff].insert(0, {'index': options['index'], 'condition': condition})
                     markIndexStatusInThreeConditions(possibleIndicesForEachDiff,\
                                                      possibleInficesForOtherCondition1,\
                                                      possibleInficesForOtherCondition2, options['index'])
@@ -252,42 +368,143 @@ def createListOfTuplesWithIndex(originalList):
         index += 1
     return tuplesList
 
-def tryToReleaseIndex(possibleIndicesForEachDiff, problematicDiff, finalIndicesForCurrentDiff):
+def getIntersectionOfIndices(listOfIndices, listOfIndicesWithDiffs):
+    intersection = []
+    indicesSet = set(listOfIndices)
+    for option in listOfIndicesWithDiffs:
+        if len(indicesSet.intersection([option['index']])) > 0:
+            intersection.insert(0, option)
+
+    return intersection
+
+def getListOfPossibleIndicesAndDiffsForCondition(possibleIndicesForCondition, condition, status):
+    indicesToReturn = []
+    for diff, possibleIndices in possibleIndicesForCondition.items():
+        for possibility in possibleIndices:
+            if possibility['isUsed'] == status:
+                if condition == None or possibility['condition'] == condition:
+                    indicesToReturn.insert(0, {'index': possibility['index'], 'diff': diff})
+    return indicesToReturn
+
+def getListOfPossibleIndicesForCondition(possibleIndicesForCondition, condition, status):
+    indicesToReturn = []
+    for diff, possibleIndices in possibleIndicesForCondition.items():
+        for possibility in possibleIndices:
+            if possibility['isUsed'] == status:
+                if condition == None or possibility['condition'] == condition:
+                    indicesToReturn.insert(0, possibility['index'])
+    return indicesToReturn
+
+def getListOfFinalIndicesForCondition(finalIndices, condition):
+    possibleIndices = []
+    for diff, indices in finalIndices.items():
+        for possibility in indices:
+            if possibility['condition'] == condition:
+                possibleIndices.insert(0, possibility['index'])
+    return possibleIndices
+
+def getListOfFinalIndicesAndDiffsForCondition(finalIndices, condition):
+    possibleIndices = []
+    for diff, indices in finalIndices.items():
+        for possibility in indices:
+            if possibility['condition'] == condition:
+                possibleIndices.insert(0, {'index': possibility['index'], 'diff': diff})
+    return possibleIndices
+
+def tryToReleaseIndexForCondition(possibleIndicesForEachDiff, problematicCondition, finalIndicesForAllDiffs):
+    usedIndicesForProblematicCondition = getListOfFinalIndicesForCondition(finalIndicesForAllDiffs,\
+                                                                           problematicCondition)
+    possibleIndicesForProblematicCondition = getListOfPossibleIndicesForCondition(possibleIndicesForEachDiff, \
+                                                                                  problematicCondition, True)
+    notUsedIndicesForProblematicCondition = list(set(possibleIndicesForProblematicCondition) - \
+        set(usedIndicesForProblematicCondition))
+
+    conditions = ['neutral', 'negative', 'positive']
+    for condition in conditions:
+
+        if condition == problematicCondition:
+            continue
+
+        freeIndicesForCondition = getListOfPossibleIndicesAndDiffsForCondition(possibleIndicesForEachDiff, condition, False)
+        if len(freeIndicesForCondition) == 0:
+            continue
+
+        usedIndicesForCondition = getListOfFinalIndicesAndDiffsForCondition(finalIndicesForAllDiffs, condition)
+
+        possibleIndicesToFree = getIntersectionOfIndices(notUsedIndicesForProblematicCondition, usedIndicesForCondition)
+
+        if len(possibleIndicesToFree) == 0:
+            continue
+
+        indexToUse = possibleIndicesToFree[0]['index']
+        diffToUse = getDiffForIndexForCondition(possibleIndicesForEachDiff, indexToUse, problematicCondition)
+        finalIndicesForAllDiffs[freeIndicesForCondition[0]['diff']].insert(0, {'index': freeIndicesForCondition[0]['index'],\
+                                                                          'condition': condition})
+        removeElementFromFinalIndicesList(finalIndicesForAllDiffs, indexToUse)
+        finalIndicesForAllDiffs[diffToUse].insert(0, {'index': indexToUse, 'condition': problematicCondition})
+        markIndexStatusInThreeConditions(possibleIndicesForEachDiff, [], [], freeIndicesForCondition[0]['index'])
+
+        return indexToUse
+    return None
+
+def getDiffForIndexForCondition(possibleIndicesForAllConditions, index, condition):
+    possibleDiffs = []
+    for diff, possibleIndices in possibleIndicesForAllConditions.items():
+        for item in possibleIndices:
+            if item['index'] == index and item['condition'] == condition:
+                possibleDiffs.insert(0, diff)
+    index = random.randint(0, len(possibleDiffs) - 1)
+    return possibleDiffs[index]
+
+def tryToReleaseIndexForDiff(possibleIndicesForEachDiff, problematicDiff, finalIndicesForCurrentDiff, problenaticCondition):
     usedIndices = []
     for diff, possibleIndices in possibleIndicesForEachDiff.items():
         if diff == problematicDiff:
             continue
 
-        freeIndex = isFreeIndexExist(possibleIndices)
+        freeIndex = isFreeIndexExist(possibleIndices, problenaticCondition)
         if freeIndex == None:
             continue
 
+        conditionToUse = possibleIndices[0]['condition']
         problematicList = fromDictListToIndexList(possibleIndicesForEachDiff[problematicDiff])
         #optionalList = fromDictListToIndexList(possibleIndicesForEachDiff[diff])
 
         notUsedByProblmaticDiff = [item for item in problematicList \
                                    if item not in finalIndicesForCurrentDiff[problematicDiff]]
 
+        finalIndicesListForCurrentDiff = fromDictListToIndexList(finalIndicesForCurrentDiff[diff])
+
         a_multiset = collections.Counter(notUsedByProblmaticDiff)
-        b_multiset = collections.Counter(finalIndicesForCurrentDiff[diff])
+        b_multiset = collections.Counter(finalIndicesListForCurrentDiff)
 
         overlap = list((a_multiset & b_multiset).elements())
         if len(overlap) == 0:
             continue
 
         indexToUse = overlap[0]
-        finalIndicesForCurrentDiff[diff].insert(0, freeIndex)
-        finalIndicesForCurrentDiff[diff].remove(indexToUse)
-        finalIndicesForCurrentDiff[problematicDiff].insert(0, indexToUse)
+        finalIndicesForCurrentDiff[diff].insert(0, {'index': freeIndex, 'condition': conditionToUse})
+        finalIndicesForCurrentDiff = removeElementFromFinalIndicesList(finalIndicesForCurrentDiff,\
+                                                                             indexToUse)
+        finalIndicesForCurrentDiff[problematicDiff].insert(0, {'index': indexToUse, 'condition': problenaticCondition})
 
-        return True
+        return indexToUse
 
-    return False
+    return None
 
+def removeElementFromFinalIndicesList(finalIndicesList, indexToRemove):
+    for diff, options in finalIndicesList.items():
+        counter = 0
+        for item in options:
+            if item['index'] == indexToRemove:
+                options.pop(counter)
+                return finalIndicesList
+            counter += 1
+    return finalIndicesList
 
-def isFreeIndexExist(possibleIndices):
+def isFreeIndexExist(possibleIndices, taregtCondition):
     for option in possibleIndices:
-        if option['isUsed'] == False:
+        if option['isUsed'] == False and option['condition'] == taregtCondition:
             return option['index']
     return None
 
@@ -297,6 +514,8 @@ def fromDictListToIndexList(dictList):
 
 
 def markIndexStatus(possibleIndicesForEachDiff, usedIndex, isUsed=True):
+    if len(possibleIndicesForEachDiff) == 0:
+        return
     for key, possibleIndices in possibleIndicesForEachDiff.items():
         for possibleIndexForSpecificDiff in possibleIndices:
             if possibleIndexForSpecificDiff['index'] == usedIndex:
@@ -310,6 +529,7 @@ def getFinalIndicesList(orderedDiffs, diffPositiveIndices, diffNegativeIndices, 
         if diff == 'positive':
             index = diffPositiveIndices[0]
             diffPositiveIndices.remove(index)
+
             finalIndicesList.insert(len(finalIndicesList),\
                                     {'index': index, 'judgeDiff': findJudgeDiffForIndex(finalIndicesForDiffs, index), \
                                      'judgeFinalScore': findJudgeFinalScoreForIndex\
@@ -337,24 +557,26 @@ def getFinalIndicesList(orderedDiffs, diffPositiveIndices, diffNegativeIndices, 
     return finalIndicesList
 
 def findJudgeDiffForIndex(finalIndicesForDiffs, index):
-    for score, indices in finalIndicesForDiffs.iteritems():
-        if index in indices:
-            return score
+    for diff, options in finalIndicesForDiffs.iteritems():
+        for option in options:
+            if option['index'] == index:
+                return diff
 
 def findJudgeFinalScoreForIndex(finalIndicesForDiffs, index, subjectsRating, semanticSign):
-    for score, indices in finalIndicesForDiffs.iteritems():
-        if index in indices:
-            return score*semanticSign[index]+subjectsRating[index]
+    for diff, options in finalIndicesForDiffs.iteritems():
+        for option in options:
+            if option['index'] == index:
+                return diff*semanticSign[index]+subjectsRating[index]
 
 def createRandomizeIndicesForCondition(indicesForDiffs, diffsInCondition):
     indicesToReturn = []
-    for key, indices in indicesForDiffs.iteritems():
+    for key, options in indicesForDiffs.iteritems():
         if key in diffsInCondition:
-            for index in indices:
+            for option in options:
                 if len(indicesToReturn) == 0:
-                    indicesToReturn.extend([index])
+                    indicesToReturn.extend([option['index']])
                 else:
-                    indicesToReturn.insert(random.randrange(len(indicesToReturn)), index)
+                    indicesToReturn.insert(random.randrange(len(indicesToReturn)), option['index'])
     return indicesToReturn
 
 def fitValueToSemanticSign(diffFromPositiveEdge, semanticSign):
