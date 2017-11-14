@@ -293,7 +293,7 @@ def getPossibleIndicesForPositiveNotIdeal(subjectRatingsCorrectedForSign, possib
             possibleIndicesForEachDiff[5].insert(0, {'index': index, 'isUsed': isUsed,\
                                                       'condition': 'positive'})
 
-        if subjectRating >= 8 and subjectRating <= 10:
+        if subjectRating >= 7 and subjectRating <= 10:
             possibleIndicesForEachDiff[1].insert(0, {'index': index, 'isUsed': isUsed, \
                                                       'condition': 'positive'})
 
