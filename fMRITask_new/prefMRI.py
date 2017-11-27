@@ -90,9 +90,11 @@ def createDiffsList(subjectsRating, semanticSign):
         index += 1
 
     count = len(countTrialsWithScore(11))
+    maximumEleven = 2
     if count > 2:
         maximumEleven = count
         allocationsOfEleven = count
+
 
     #amountForEachDiff[0] = amountForEachDiff[0] + count
 
@@ -151,20 +153,16 @@ def createDiffsList(subjectsRating, semanticSign):
         chooseTrialsForConditionNotIdeal(finalIndicesForAllConditions, possibleIndicesForAllConditions, 'negative', \
                                          missingIndicesForNegative)
 
+    positiveDiffAmount = countTrialsInCondition(finalIndicesForAllConditions, 'positive')
 
-    positiveDiffAmount = len(finalIndicesForAllConditions[5]) + len(finalIndicesForAllConditions[4])\
-                         + len(finalIndicesForAllConditions[3]) +\
-        len(finalIndicesForAllConditions[2]) + len(finalIndicesForAllConditions[1])
+    negativeDiffAmount = countTrialsInCondition(finalIndicesForAllConditions, 'negative')
 
-    negativeDiffAmount = len(finalIndicesForAllConditions[-3])\
-                         + len(finalIndicesForAllConditions[-2]) + len(finalIndicesForAllConditions[-1])
-
-    diffZeroAmount = len(finalIndicesForAllConditions[0])
+    diffZeroAmount = countTrialsInCondition(finalIndicesForAllConditions, 'neutral')
 
     orderedDiffs = orderDiffs(positiveDiffAmount, negativeDiffAmount, diffZeroAmount)
-    diffPositiveIndices = createRandomizeIndicesForCondition(finalIndicesForAllConditions, [1,2,3,4,5])
-    diffNegativeIndices = createRandomizeIndicesForCondition(finalIndicesForAllConditions, [-3, -2, -1])
-    diffNutralIndices = createRandomizeIndicesForCondition(finalIndicesForAllConditions, [0])
+    diffPositiveIndices = createRandomizeIndicesForCondition(finalIndicesForAllConditions, 'positive')
+    diffNegativeIndices = createRandomizeIndicesForCondition(finalIndicesForAllConditions, 'negative')
+    diffNutralIndices = createRandomizeIndicesForCondition(finalIndicesForAllConditions, 'neutral')
 
     return getFinalIndicesList(orderedDiffs, diffPositiveIndices, diffNegativeIndices, diffNutralIndices,\
                                finalIndicesForAllConditions, subjectsRating, semanticSign)
@@ -214,19 +212,12 @@ def getPossibleIndicesForNeutralNotIdeal(subjectRatingsCorrectedForSign, possibl
         subjectRating = subjectRatingTuple['element']
         index = subjectRatingTuple['index']
         isUsed = index in usedIndices
-        if subjectRating >= 2 and subjectRating <= 4:
-
+        if subjectRating == 2:
             possibleIndicesForEachDiff[2].insert(0, {'index': index, 'isUsed': isUsed, \
                                                       'condition': 'neutral'})
-
-        if subjectRating == 4 or subjectRating == 8:
-            possibleIndicesForEachDiff[0].insert(0, {'index': index, 'isUsed': isUsed, \
-                                                      'condition': 'neutral'})
-
-        if subjectRating >= 8 and subjectRating <= 10:
+        if subjectRating == 10:
             possibleIndicesForEachDiff[-2].insert(0, {'index': index, 'isUsed': isUsed, \
-                                                      'condition': 'neutral'})
-
+                                                   'condition': 'neutral'})
     return possibleIndicesForEachDiff
 
 
@@ -277,23 +268,19 @@ def getPossibleIndicesForPositiveNotIdeal(subjectRatingsCorrectedForSign, possib
         subjectRating = subjectRatingTuple['element']
         index = subjectRatingTuple['index']
         isUsed = index in usedIndices
-        if subjectRating == 9:
-            possibleIndicesForEachDiff[2].insert(0, {'index': index, 'isUsed': isUsed, \
-                                                      'condition': 'positive'})
-
-        if subjectRating == 8 or  subjectRating == 3:
-            possibleIndicesForEachDiff[3].insert(0, {'index': index, 'isUsed': isUsed, \
-                                                      'condition': 'positive'})
-
-        if subjectRating == 7 or subjectRating == 2:
+        if subjectRating == 2:
             possibleIndicesForEachDiff[4].insert(0, {'index': index, 'isUsed': isUsed, \
                                                       'condition': 'positive'})
 
-        if subjectRating == 1 or subjectRating == 6:
+        if subjectRating == 3:
+            possibleIndicesForEachDiff[3].insert(0, {'index': index, 'isUsed': isUsed, \
+                                                      'condition': 'positive'})
+
+        if subjectRating == 1:
             possibleIndicesForEachDiff[5].insert(0, {'index': index, 'isUsed': isUsed,\
                                                       'condition': 'positive'})
 
-        if subjectRating >= 7 and subjectRating <= 10:
+        if subjectRating >= 8 and subjectRating <= 10:
             possibleIndicesForEachDiff[1].insert(0, {'index': index, 'isUsed': isUsed, \
                                                       'condition': 'positive'})
 
@@ -337,18 +324,30 @@ def getPossibleIndicesForNegativeNotIdeal(subjectRatingsCorrectedForSign, possib
         index = subjectRatingTuple['index']
         isUsed = index in usedIndices
         if subjectRating == 1:
-            possibleIndicesForEachDiff[0].insert(0, {'index': index, 'isUsed': isUsed,\
+            possibleIndicesForEachDiff[1].insert(0, {'index': index, 'isUsed': isUsed,\
                                                       'condition': 'negative'})
         if subjectRating == 2:
-            possibleIndicesForEachDiff[-1].insert(0, {'index': index, 'isUsed': isUsed, \
+            possibleIndicesForEachDiff[0].insert(0, {'index': index, 'isUsed': isUsed, \
                                                       'condition': 'negative'})
         if subjectRating == 3:
-            possibleIndicesForEachDiff[-2].insert(0, {'index': index, 'isUsed': isUsed, \
+            possibleIndicesForEachDiff[-1].insert(0, {'index': index, 'isUsed': isUsed, \
                                                       'condition': 'negative'})
-
-        if subjectRating == 4:
-            possibleIndicesForEachDiff[-3].insert(0, {'index': index, 'isUsed': isUsed,\
+        ''' SOS Code
+        
+        if subjectRating == 8:
+            possibleIndicesForEachDiff[-3].insert(0, {'index': index, 'isUsed': isUsed, \
+                                                     'condition': 'negative'})
+        if subjectRating == 9:
+            possibleIndicesForEachDiff[-3].insert(0, {'index': index, 'isUsed': isUsed, \
                                                       'condition': 'negative'})
+                                                      
+        if subjectRating == 10:
+            possibleIndicesForEachDiff[-3].insert(0, {'index': index, 'isUsed': isUsed, \
+                                                     'condition': 'negative'})
+        if subjectRating == 11:
+            possibleIndicesForEachDiff[-3].insert(0, {'index': index, 'isUsed': isUsed, \
+                                                      'condition': 'negative'})                                                    
+        '''
 
     return possibleIndicesForEachDiff
 
@@ -430,8 +429,8 @@ def chooseTrialsForCondition(finalIndicesForCondition, amountForEachDiff, possib
                                                  possibleInficesForOtherCondition2, index)
             correctionNeeded = len(indicsList)
             while correctionNeeded > 0:
-                if amountForEachDiff[2] > 0:
-                    amountForEachDiff[2] -= 1
+                if amountForEachDiff[4] > 0:
+                    amountForEachDiff[4] -= 1
                 else:
                     amountForEachDiff[3] -= 1
                 correctionNeeded -= 1
@@ -929,11 +928,11 @@ def findFinalScoreForIndex(index,score,semanticSign):
     else:
         return score
 
-def createRandomizeIndicesForCondition(indicesForDiffs, diffsInCondition):
+def createRandomizeIndicesForCondition(indicesForDiffs, condition):
     indicesToReturn = []
     for key, options in indicesForDiffs.iteritems():
-        if key in diffsInCondition:
-            for option in options:
+        for option in options:
+            if option['condition'] == condition:
                 if len(indicesToReturn) == 0:
                     indicesToReturn.extend([option['index']])
                 else:
